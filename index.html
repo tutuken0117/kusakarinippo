@@ -1083,14 +1083,15 @@ async function makePdfBlob(){
   }
   const node = $("excelSheet");
   const canvas = await html2canvas(node, {scale:2, backgroundColor:"#ffffff"});
-  const imgData = canvas.toDataURL("image/png");
+  // PNGは無圧縮に近く容量が大きくなりやすいため、JPEG（高品質圧縮）に変更してファイルサイズを大幅に削減。
+  const imgData = canvas.toDataURL("image/jpeg", 0.85);
   const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF({orientation:"landscape", unit:"pt", format:"a4"});
+  const pdf = new jsPDF({orientation:"landscape", unit:"pt", format:"a4", compress:true});
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
   const imgW = pageW - 40;
   const imgH = canvas.height * imgW / canvas.width;
-  pdf.addImage(imgData, "PNG", 20, 20, imgW, Math.min(imgH, pageH-40));
+  pdf.addImage(imgData, "JPEG", 20, 20, imgW, Math.min(imgH, pageH-40), undefined, "MEDIUM");
   return pdf.output("blob");
 }
 function downloadBlob(blob, filename){
