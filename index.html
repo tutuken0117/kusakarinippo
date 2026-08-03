@@ -1071,7 +1071,7 @@ function buildEmailText(){
   return body;
 }
 function buildSubject(){
-  return `作業日報（週報）＿${$("workDate").value}＿${settings.contractor}`;
+  return `作業日報（週報）＿${$("sendDateInput").value}＿${settings.contractor}`;
 }
 
 let lastPdfBlob = null, lastPdfName = "";
@@ -1138,7 +1138,7 @@ async function doGeneratePdf(){
   try{
     const blob = await makePdfBlob();
     lastPdfBlob = blob;
-    lastPdfName = `作業日報_${$("workDate").value}.pdf`;
+    lastPdfName = `作業日報_${$("sendDateInput").value}.pdf`;
     showReadyModal();
   }catch(e){
     showToast("PDF作成に失敗しました");
