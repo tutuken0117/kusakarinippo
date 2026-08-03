@@ -179,17 +179,6 @@
     <div id="todayNoWorkNote" class="hint" style="display:none;">実績なしの日のため、人数・作業員は空欄でPDFに出力されます。</div>
   </div>
 
-  <!-- 進捗チェックリスト（全体表示・タップ不要） -->
-  <div class="card">
-    <h2><span class="badge done">進捗</span> 鉄塔進捗（全<span id="towerTotalLabel">57</span>基）</h2>
-    <div class="hint">全体の完了状況です。緑＝完了済み、オレンジ枠＝本日追加した番号。追加・取消は上の「鉄塔を選択」から行ってください。</div>
-    <div class="tower-grid" id="towerGrid"></div>
-    <div class="progress-summary">
-      <span>累積進捗</span>
-      <b id="progressLabel">0/57基</b>
-    </div>
-  </div>
-
   <!-- 翌日の予定 -->
   <div class="card">
     <h2><span class="badge steel">予定</span> 次の作業予定</h2>
@@ -235,20 +224,20 @@
     <div class="weekgrid" id="weekGrid"></div>
   </div>
 
-  <!-- 送信情報 -->
+  <!-- 鉄塔進捗（一番下に表示） -->
   <div class="card">
-    <h2><span class="badge steel">宛先</span> 送信情報</h2>
-    <div class="hint" id="sendInfoSummary" style="font-size:13px; color:var(--ink);"></div>
-    <button class="small-btn" style="margin-top:10px;" onclick="openSettings()">送信情報を編集</button>
+    <h2><span class="badge done">進捗</span> 鉄塔進捗（全<span id="towerTotalLabel">57</span>基）</h2>
+    <div class="hint">全体の完了状況です。緑＝完了済み、オレンジ枠＝本日追加した番号。追加・取消は上の「鉄塔を選択」から行ってください。</div>
+    <div class="tower-grid" id="towerGrid"></div>
+    <div class="progress-summary">
+      <span>累積進捗</span>
+      <b id="progressLabel">0/57基</b>
+    </div>
   </div>
 
-  <!-- 日報プレビュー（エクセル様式） -->
-  <div class="card">
-    <h2><span class="badge">帳票</span> 作業日報プレビュー（元の様式）</h2>
-    <div class="hint">左右にスクロールできます。この内容でPDFを作成します。</div>
-    <div class="sheet-scroll">
-      <table class="excel-tbl" id="excelSheet"></table>
-    </div>
+  <!-- 日報の内容（PDF・プレビューの元データ。画面には表示しません） -->
+  <div style="position:absolute; left:-9999px; top:0;">
+    <table class="excel-tbl" id="excelSheet"></table>
   </div>
 </main>
 
@@ -613,7 +602,6 @@ function renderAll(){
   renderNextChips();
   updateTeamDisplays();
   renderWeekLabels();
-  renderSendInfo();
   renderThuBanner();
   renderDateWarningBanner();
   renderProgressWidget();
@@ -627,10 +615,6 @@ function updateTeamDisplays(){
   $("nextTeamCountDisplay").textContent = `${nextRoster.length}名`;
 }
 
-function renderSendInfo(){
-  $("sendInfoSummary").innerHTML =
-    `<b>${settings.recipientOrg}</b><br>${settings.recipientDept}（担当者　${settings.recipientPerson}様）<br>宛先メール：${settings.recipientEmail}<br>送信元：${settings.senderEmail}`;
-}
 function renderThuBanner(){
   const isThu = new Date().getDay() === 4;
   if(!isThu){ $("thuBanner").innerHTML = ""; return; }
@@ -1058,22 +1042,6 @@ function updatePreviewTable(){
   `;
 }
 
-function buildEmailText(){
-  const hasWeekly = weeklyTowers.some(a=>a.length>0) || weekDayOff.some(v=>v);
-
-  let body = `${settings.recipientOrg}\n${settings.recipientDept}　${settings.recipientPerson}様\n\n`;
-  body += `添付のPDFの通り、作業日報をご報告いたします。\n`;
-  if(hasWeekly){
-    body += `来週の作業予定も併せてご報告いたします。\n`;
-  }
-  body += `\nよろしくお願いいたします。\n${settings.contractor}　${settings.agentName}`;
-
-  return body;
-}
-function buildSubject(){
-  return `作業日報（週報）＿${$("sendDateInput").value}＿${settings.contractor}`;
-}
-
 let lastPdfBlob = null, lastPdfName = "";
 
 async function makePdfBlob(){
@@ -1093,6 +1061,41 @@ async function makePdfBlob(){
   const imgH = canvas.height * imgW / canvas.width;
   pdf.addImage(imgData, "JPEG", 20, 20, imgW, Math.min(imgH, pageH-40), undefined, "MEDIUM");
   return pdf.output("blob");
+}
+async function saveWithPicker(blob, filename){
+  // 1) File System Access API — 対応ブラウザ（主にPC版Chrome/Edge）では
+  //    保存先フォルダとファイル名を選べるネイティブの「名前を付けて保存」画面が出ます。
+  if(window.showSaveFilePicker){
+    try{
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description: "PDFファイル", accept: { "application/pdf": [".pdf"] } }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      showToast("保存しました");
+      return;
+    }catch(e){
+      if(e && e.name === "AbortError") return; // ユーザーがキャンセル
+      // 失敗時は他の方法にフォールバック
+    }
+  }
+  // 2) Web Share API — 主にスマホ。共有シートから保存先（Files／OneDriveなど）を選べます。
+  if(navigator.share){
+    try{
+      const file = new File([blob], filename, { type: "application/pdf" });
+      if(navigator.canShare && navigator.canShare({ files: [file] })){
+        await navigator.share({ files: [file] });
+        return;
+      }
+    }catch(e){
+      if(e && e.name === "AbortError") return; // ユーザーがキャンセル
+      // 失敗時は最後の方法にフォールバック
+    }
+  }
+  // 3) どちらも使えない場合は、通常のダウンロード（毎回同じ保存先）にフォールバック。
+  downloadBlob(blob, filename);
 }
 function downloadBlob(blob, filename){
   const url = URL.createObjectURL(blob);
@@ -1139,64 +1142,10 @@ async function doGeneratePdf(){
     const blob = await makePdfBlob();
     lastPdfBlob = blob;
     lastPdfName = `作業日報_${$("sendDateInput").value}.pdf`;
-    showReadyModal();
+    await saveWithPicker(lastPdfBlob, lastPdfName);
   }catch(e){
     showToast("PDF作成に失敗しました");
   }
-}
-
-function showReadyModal(){
-  const dl = $("dlLink");
-  dl.href = URL.createObjectURL(lastPdfBlob);
-  dl.download = lastPdfName;
-  $("readyModal").style.display = "flex";
-}
-function closeReadyModal(){ $("readyModal").style.display = "none"; }
-
-// Sharing the blob URL as a plain link (e.g. long-pressing the "PDFを保存" link)
-// makes iOS treat it as a web page/URL, not a file — that's why OneDrive doesn't
-// show up and only "Save to Files"/link-style targets appear. Building an actual
-// File object with the correct application/pdf MIME type and passing it to
-// navigator.share() makes iOS recognize it as a real PDF file, so OneDrive (and
-// other file-handling apps) appear properly in the share sheet.
-async function shareAsFile(){
-  if(!lastPdfBlob) return;
-  if(!navigator.share){
-    showToast("この画面（ファイルを直接開いた状態）では共有機能が使えません。「PDFを保存」をお使いください");
-    return;
-  }
-  const file = new File([lastPdfBlob], lastPdfName, { type: "application/pdf" });
-  if(navigator.canShare && navigator.canShare({ files: [file] })){
-    try{
-      await navigator.share({ files: [file] });
-    }catch(e){
-      if(e && e.name !== "AbortError"){
-        showToast("共有に失敗しました：" + (e && e.message ? e.message : "不明なエラー"));
-      }
-      /* AbortError = user cancelled the share sheet, nothing to show */
-    }
-  } else {
-    showToast("この端末ではファイル共有に対応していません。「PDFを保存」からダウンロードしてください");
-  }
-}
-function copyToClipboard(text, msg){
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(
-      () => showToast(msg),
-      () => showToast("コピーに失敗しました")
-    );
-  } else {
-    showToast("この端末ではコピー機能が使えません");
-  }
-}
-function copyRecipient(){
-  copyToClipboard(settings.recipientEmail, "宛先をコピーしました");
-}
-function copySubjectText(){
-  copyToClipboard(buildSubject(), "件名をコピーしました");
-}
-function copyBodyText(){
-  copyToClipboard(buildEmailText(), "文章をコピーしました");
 }
 
 async function startSend(){
@@ -1288,23 +1237,7 @@ async function saveSettingsForm(){
 loadAll();
 </script>
 
-<!-- PDF準備完了モーダル -->
-<div id="readyModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeReadyModal()">
-  <div class="modal">
-    <button class="close" onclick="closeReadyModal()">×</button>
-    <h3>PDFの準備ができました</h3>
-    <div class="modal-actions">
-      <button class="link-btn share" onclick="shareAsFile()">📤 共有する（OneDriveなどに保存）</button>
-      <a id="dlLink" class="link-btn dl" href="#" download="">📥 PDFを保存（ダウンロード）</a>
-      <button class="link-btn mailapp" onclick="copyRecipient()">📋 あて先をコピー</button>
-      <button class="link-btn gmail" onclick="copySubjectText()">📋 件名をコピー</button>
-      <button class="link-btn gmail" onclick="copyBodyText()">📋 文章をコピー</button>
-    </div>
-    <div class="hint" style="margin-top:10px;">
-      OneDriveに保存したい場合は「📤 共有する」を使ってください（共有シートにOneDriveが表示されます）。メールに添付する場合は「📥 PDFを保存」でダウンロードし、メールアプリを開いて、あて先・件名・文章をそれぞれ貼り付け、PDFを手動で添付してから、内容を確認のうえご自身で送信してください。
-    </div>
-  </div>
-</div>
+
 
 <!-- 警告モーダル -->
 <div id="warningModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeWarningModal()">
