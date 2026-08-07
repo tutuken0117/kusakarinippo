@@ -151,6 +151,8 @@
     <div class="hint">初日や、作業日が長く空いた後など、実績がなく予定だけを報告する場合はここにチェックしてください。</div>
 
     <div id="todayWorkFields">
+      <button type="button" class="small-btn" id="copyPlanBtn" style="width:100%; display:none;" onclick="copyPlanToToday()">📋 前回設定した「予定」を本日の実績にコピー</button>
+
       <label>作業場所・範囲（本日完了した鉄塔）</label>
       <input type="text" id="workRange" readonly placeholder="下で鉄塔を選択すると自動入力されます">
 
@@ -773,6 +775,15 @@ function todaysNewTowers(){
 function autoFillRangeFromTowers(){
   $("workRange").value = formatTowerList(todaysNewTowers());
 }
+function copyPlanToToday(){
+  if(!nextPlanTowers.length) return;
+  nextPlanTowers.forEach(i => { towerDone[i] = true; });
+  nextPlanTowers = [];
+  saveTowers();
+  saveDraft(false);
+  renderAll();
+  showToast("予定を本日の実績にコピーしました");
+}
 function renderTodayPicker(){
   const sel = $("towerPickToday");
   const remaining = validTowers().filter(i=>!towerDone[i]);
@@ -797,6 +808,7 @@ function renderTodayChips(){
   box.innerHTML = todays.map(i => `
     <span class="rm-chip">№${i}<button type="button" onclick="removeTodayTower(${i})">×</button></span>
   `).join("") || `<span class="hint">まだ選択されていません</span>`;
+  $("copyPlanBtn").style.display = (!noWorkToday && nextPlanTowers.length) ? "" : "none";
 }
 function removeTodayTower(i){
   towerDone[i] = false;
