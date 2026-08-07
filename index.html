@@ -220,7 +220,16 @@
     <div class="hint">通常は木曜日に自動で翌週の日付になります。お盆休みなど、翌週も飛ばしてさらに先の週を報告する場合はここを直接変更してください。</div>
 
     <button type="button" class="small-btn" style="margin-top:10px; width:100%;" onclick="toggleAllWeekOff()" id="allOffBtn">この週はすべて休工にする（お盆休みなど）</button>
-    <div class="hint">← 横にスクロールできます →</div>
+
+    <label style="margin-top:14px;">今週中に終わる予定の鉄塔（除外リスト）</label>
+    <div class="hint">今週の週間予定に入っていた番号は、来週分の週が始まると自動でここに追加され、来週のプルダウンには出てこなくなります。実際には終わらなかった番号は×で解除でき、逆に追加で除外したい番号もここから追加できます。</div>
+    <div class="chiplist" id="exclusionChips" style="margin-top:6px;"></div>
+    <div class="row2" style="margin-top:8px;">
+      <select id="towerPickExclude"></select>
+      <button class="small-btn" onclick="pickExclusionAdd()">＋ 除外に追加</button>
+    </div>
+
+    <div class="hint" style="margin-top:12px;">← 横にスクロールできます →</div>
     <div class="weekgrid" id="weekGrid"></div>
   </div>
 
@@ -320,6 +329,8 @@ let selectedMembers = [];
 let nextSelectedMembers = [];
 let weekDayOff = [false,false,false,false,false,false,false];
 let weeklyTowers = [[],[],[],[],[],[],[]];
+let weekExclusions = [];      // towers assumed done by end of the previous week (carried over + manual)
+let weeklyTowersWeekStart = ""; // which week's Monday the current weeklyTowers/weekDayOff belong to
 let towerDone = {};          // { "1": true, "2": false ... } cumulative
 let baseline = {date:"", state:{}}; // snapshot at start of current work date
 let nextPlanTowers = [];     // towers planned for tomorrow (not yet done)
@@ -492,6 +503,14 @@ async function loadAll(){
     if(s && s.value) settings = {...DEFAULT_SETTINGS, ...JSON.parse(s.value)};
   }catch(e){}
   try{
+    const h = await storage.get('companyHolidays');
+    if(h && h.value){
+      const arr = JSON.parse(h.value);
+      COMPANY_HOLIDAYS.clear();
+      arr.forEach(d => COMPANY_HOLIDAYS.add(d));
+    }
+  }catch(e){}
+  try{
     const t = await storage.get('towers');
     if(t && t.value) towerDone = JSON.parse(t.value);
   }catch(e){}
@@ -512,6 +531,8 @@ async function loadAll(){
       $("weekStart").value = autoAdvanceIfStale($("workDate").value, draft.weekStart || mondayOf(todayStr()));
       weekDayOff = draft.weekDayOff || [false,false,false,false,false,false,false];
       weeklyTowers = draft.weeklyTowers || [[],[],[],[],[],[],[]];
+      weekExclusions = draft.weekExclusions || [];
+      weeklyTowersWeekStart = draft.weeklyTowersWeekStart || "";
       noWorkToday = draft.noWorkToday || false;
       if(draft.nextWorkDate){
         $("nextWorkDate").value = draft.nextWorkDate;
@@ -540,6 +561,7 @@ async function loadAll(){
   $("todayNoWorkNote").style.display = noWorkToday ? "" : "none";
   applyDateGuards();
 
+  applyWeekTransition();
   ensureBaseline();
   renderAll();
 }
@@ -558,6 +580,7 @@ function onDateChange(){
   $("nextWorkDate").value = isoDate(nd);
   $("sendDateInput").value = $("workDate").value;
   applyDateGuards();
+  applyWeekTransition();
   saveDraft(false);
   renderAll();
 }
@@ -602,6 +625,7 @@ function renderAll(){
   renderNextChips();
   updateTeamDisplays();
   renderWeekLabels();
+  renderExclusionUI();
   renderThuBanner();
   renderDateWarningBanner();
   renderProgressWidget();
@@ -820,8 +844,24 @@ function removeNextTower(i){
 function usedElsewhere(){
   const used = new Set();
   validTowers().forEach(i=>{ if(towerDone[i]) used.add(i); });
+  nextPlanTowers.forEach(i=>used.add(i));
   weeklyTowers.forEach(arr=>arr.forEach(i=>used.add(i)));
+  weekExclusions.forEach(i=>used.add(i));
   return used;
+}
+// 週が切り替わったとき（自動繰り上げ・手動変更どちらでも）、直前の週の週間予定に
+// 入っていた番号を「今週中に終わる予定＝除外リスト」へ引き継ぎ、来週分の入力欄は空にする。
+function applyWeekTransition(){
+  const newStart = $("weekStart").value;
+  if(!newStart || newStart === weeklyTowersWeekStart) return;
+  if(weeklyTowersWeekStart){ // 初回読み込み時（比較対象がまだ無い）はスキップ
+    const carried = new Set(weekExclusions);
+    weeklyTowers.forEach(arr => arr.forEach(i => carried.add(i)));
+    weekExclusions = Array.from(carried);
+    weeklyTowers = [[],[],[],[],[],[],[]];
+    weekDayOff = [false,false,false,false,false,false,false];
+  }
+  weeklyTowersWeekStart = newStart;
 }
 function onWeekStartChange(){
   const v = $("weekStart").value;
@@ -833,9 +873,39 @@ function onWeekStartChange(){
       showToast("週の開始日は月曜日のみ選択できます。自動的に月曜日に調整しました");
     }
   }
+  applyWeekTransition();
   saveDraft(false);
   renderWeekLabels();
+  renderExclusionUI();
   updatePreviewTable();
+}
+function renderExclusionUI(){
+  const box = $("exclusionChips");
+  box.innerHTML = weekExclusions.length ? weekExclusions.slice().sort((a,b)=>a-b).map(i => `
+    <span class="rm-chip">№${i}<button type="button" onclick="removeExclusion(${i})">×</button></span>
+  `).join("") : `<span class="hint">除外はまだありません</span>`;
+
+  const usedByOther = new Set();
+  validTowers().forEach(i=>{ if(towerDone[i]) usedByOther.add(i); });
+  nextPlanTowers.forEach(i=>usedByOther.add(i));
+  weeklyTowers.forEach(arr=>arr.forEach(i=>usedByOther.add(i)));
+  const sel = $("towerPickExclude");
+  const options = validTowers().filter(i => !usedByOther.has(i) && !weekExclusions.includes(i));
+  sel.innerHTML = options.map(i=>`<option value="${i}">№${i}</option>`).join("");
+}
+function pickExclusionAdd(){
+  const v = parseInt($("towerPickExclude").value, 10);
+  if(isNaN(v)) return;
+  weekExclusions.push(v);
+  saveDraft(false);
+  renderExclusionUI();
+  renderWeekLabels();
+}
+function removeExclusion(i){
+  weekExclusions = weekExclusions.filter(n => n !== i);
+  saveDraft(false);
+  renderExclusionUI();
+  renderWeekLabels();
 }
 function toggleAllWeekOff(){
   const allOff = weekDayOff.every(v => v);
@@ -845,6 +915,7 @@ function toggleAllWeekOff(){
   }
   saveDraft(false);
   renderWeekLabels();
+  renderExclusionUI();
   updatePreviewTable();
 }
 function renderWeekLabels(){
@@ -890,6 +961,7 @@ function pickWeekAdd(dayIdx){
   weeklyTowers[dayIdx].push(v);
   saveDraft(false);
   renderWeekLabels();
+  renderExclusionUI();
   renderTodayPicker();
   renderNextPicker();
   updatePreviewTable();
@@ -898,6 +970,7 @@ function removeWeekTower(dayIdx, num){
   weeklyTowers[dayIdx] = weeklyTowers[dayIdx].filter(n=>n!==num);
   saveDraft(false);
   renderWeekLabels();
+  renderExclusionUI();
   renderTodayPicker();
   renderNextPicker();
   updatePreviewTable();
@@ -915,6 +988,7 @@ function collectDraft(){
     nextWorkDate: $("nextWorkDate").value,
     weekStart: $("weekStart").value,
     weekDayOff, weeklyTowers,
+    weekExclusions, weeklyTowersWeekStart,
     noWorkToday
   };
 }
@@ -1082,16 +1156,21 @@ async function saveWithPicker(blob, filename){
     }
   }
   // 2) Web Share API — 主にスマホ。共有シートから保存先（Files／OneDriveなど）を選べます。
+  //    iPhoneのChromeはファイル共有への対応が弱く、ここに来ずに③へ流れることがあります。
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isIOSChrome = isIOS && /CriOS/.test(navigator.userAgent);
   if(navigator.share){
-    try{
-      const file = new File([blob], filename, { type: "application/pdf" });
-      if(navigator.canShare && navigator.canShare({ files: [file] })){
+    const file = new File([blob], filename, { type: "application/pdf" });
+    if(navigator.canShare && navigator.canShare({ files: [file] })){
+      try{
         await navigator.share({ files: [file] });
         return;
+      }catch(e){
+        if(e && e.name === "AbortError") return; // ユーザーがキャンセル
+        // 失敗時は最後の方法にフォールバック
       }
-    }catch(e){
-      if(e && e.name === "AbortError") return; // ユーザーがキャンセル
-      // 失敗時は最後の方法にフォールバック
+    } else if(isIOSChrome){
+      showToast("この端末のChromeはファイル共有に対応していないため、通常のダウンロードになります。OneDriveを選びたい場合はSafariでお試しください");
     }
   }
   // 3) どちらも使えない場合は、通常のダウンロード（毎回同じ保存先）にフォールバック。
@@ -1165,46 +1244,36 @@ async function proceedAnyway(){
 }
 
 function openSettings(){
-  $("setProjectName").value = settings.projectName;
-  $("setLineName").value = settings.lineName;
-  $("setContractor").value = settings.contractor;
-  $("setAgentName").value = settings.agentName;
-  $("setAgentPhone").value = settings.agentPhone;
-  $("setCompanyPhone").value = settings.companyPhone;
-  $("setCompanyFax").value = settings.companyFax;
-  $("setSenderEmail").value = settings.senderEmail;
-  $("setRecipientEmail").value = settings.recipientEmail;
-  $("setRecipientOrg").value = settings.recipientOrg;
-  $("setRecipientDept").value = settings.recipientDept;
-  $("setRecipientPerson").value = settings.recipientPerson;
-  $("setRecipientTel").value = settings.recipientTel;
-  $("setRecipientFax").value = settings.recipientFax;
-  $("setFixedLeader").value = settings.fixedLeader;
-  $("setTowerRangeSpec").value = settings.towerRangeSpec;
+  renderHolidayList();
   $("settingsModal").style.display = "flex";
 }
 function closeSettings(){ $("settingsModal").style.display = "none"; }
-async function saveSettingsForm(){
-  settings.projectName = $("setProjectName").value;
-  settings.lineName = $("setLineName").value;
-  settings.contractor = $("setContractor").value;
-  settings.agentName = $("setAgentName").value;
-  settings.agentPhone = $("setAgentPhone").value;
-  settings.companyPhone = $("setCompanyPhone").value;
-  settings.companyFax = $("setCompanyFax").value;
-  settings.senderEmail = $("setSenderEmail").value;
-  settings.recipientEmail = $("setRecipientEmail").value;
-  settings.recipientOrg = $("setRecipientOrg").value;
-  settings.recipientDept = $("setRecipientDept").value;
-  settings.recipientPerson = $("setRecipientPerson").value;
-  settings.recipientTel = $("setRecipientTel").value;
-  settings.recipientFax = $("setRecipientFax").value;
-  settings.fixedLeader = $("setFixedLeader").value;
-  settings.towerRangeSpec = $("setTowerRangeSpec").value || "1-12,126-170";
-  await saveSettings();
+function renderHolidayList(){
+  const list = Array.from(COMPANY_HOLIDAYS).sort();
+  const box = $("holidayList");
+  box.innerHTML = list.length ? list.map(d => `
+    <div class="rm-chip">${d}<button type="button" onclick="removeHoliday('${d}')">×</button></div>
+  `).join("") : `<span class="hint">休日が登録されていません</span>`;
+}
+async function saveHolidays(){
+  await storage.set("companyHolidays", JSON.stringify(Array.from(COMPANY_HOLIDAYS)));
+}
+function addHoliday(){
+  const v = $("newHolidayDate").value;
+  if(!v) return;
+  COMPANY_HOLIDAYS.add(v);
+  $("newHolidayDate").value = "";
+  saveHolidays();
+  renderHolidayList();
   renderAll();
-  closeSettings();
-  showToast("設定を更新しました");
+  showToast("休日を追加しました");
+}
+function removeHoliday(d){
+  COMPANY_HOLIDAYS.delete(d);
+  saveHolidays();
+  renderHolidayList();
+  renderAll();
+  showToast("休日を削除しました");
 }
 
 (function checkSandbox(){
@@ -1258,36 +1327,15 @@ loadAll();
 <div id="settingsModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeSettings()">
   <div class="modal">
     <button class="close" onclick="closeSettings()">×</button>
-    <h3>送信情報・現場情報の設定</h3>
-    <label>件名（工事名）</label><input type="text" id="setProjectName">
-    <label>線路名</label><input type="text" id="setLineName">
-    <label>工事請負者名</label><input type="text" id="setContractor">
+    <h3>会社休日の設定</h3>
+    <div class="hint">日曜日は自動で赤表示されます。それ以外の会社休日をここで自由に追加・削除できます。追加した日は、週間予定の日付・曜日が赤字で表示されます。</div>
+    <label>休日を追加</label>
     <div class="row2">
-      <div><label>現場代理人名</label><input type="text" id="setAgentName"></div>
-      <div><label>現場代理人携帯</label><input type="text" id="setAgentPhone"></div>
+      <input type="date" id="newHolidayDate">
+      <button class="small-btn" onclick="addHoliday()">＋追加</button>
     </div>
-    <div class="row2">
-      <div><label>会社電話</label><input type="text" id="setCompanyPhone"></div>
-      <div><label>会社FAX</label><input type="text" id="setCompanyFax"></div>
-    </div>
-    <label>作業班長（固定）</label><input type="text" id="setFixedLeader">
-    <label>有効な鉄塔番号（範囲指定・欠番を除く）</label>
-    <input type="text" id="setTowerRangeSpec" placeholder="例：1-12,126-170">
-    <div class="hint">カンマ区切りで範囲を指定します。「1-12,126-170」は№1〜12と№126〜170のみが対象で、合計57基になります（№13〜125は欠番として自動的に除外されます）。</div>
-    <label>送信元メールアドレス（あなた）</label><input type="text" id="setSenderEmail">
-    <label>送信先メールアドレス（施主）</label><input type="text" id="setRecipientEmail">
-    <div class="row2">
-      <div><label>送信先　会社名</label><input type="text" id="setRecipientOrg"></div>
-      <div><label>送信先　部署名</label><input type="text" id="setRecipientDept"></div>
-    </div>
-    <label>担当者名（様、を除く）</label><input type="text" id="setRecipientPerson">
-    <div class="row2">
-      <div><label>送信先　TEL</label><input type="text" id="setRecipientTel"></div>
-      <div><label>送信先　FAX</label><input type="text" id="setRecipientFax"></div>
-    </div>
-    <div class="modal-actions">
-      <button class="link-btn mailapp" onclick="saveSettingsForm()">保存する</button>
-    </div>
+    <label style="margin-top:14px;">登録済みの休日</label>
+    <div class="chiplist" id="holidayList"></div>
   </div>
 </div>
 
