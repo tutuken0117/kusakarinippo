@@ -135,7 +135,6 @@
     <h2><span class="badge steel">送信</span> 送信日</h2>
     <label>送信日</label>
     <input type="date" id="sendDateInput" onchange="onSendDateChange()">
-    <div class="hint">通常は作業日と同じ日付が自動で入りますが、都合により変更したい場合はここで変更できます。</div>
   </div>
 
   <!-- 本日の実績 -->
@@ -148,7 +147,6 @@
       <input type="checkbox" id="noWorkToday" onchange="onNoWorkToggle()" style="width:auto;">
       本日は実績なし（予定のみ報告する日）
     </label>
-    <div class="hint">初日や、作業日が長く空いた後など、実績がなく予定だけを報告する場合はここにチェックしてください。</div>
 
     <div id="todayWorkFields">
       <button type="button" class="small-btn" id="copyPlanBtn" style="width:100%; display:none;" onclick="copyPlanToToday()">📋 前回設定した「予定」を本日の実績にコピー</button>
@@ -186,7 +184,6 @@
     <h2><span class="badge steel">予定</span> 次の作業予定</h2>
     <label>作業予定日</label>
     <input type="date" id="nextWorkDate" onchange="onNextWorkDateChange()">
-    <div class="hint">通常は作業日の翌日ですが、間が空く場合はここで日付を変更できます。</div>
 
     <label>作業場所・範囲</label>
     <input type="text" id="nextRange" readonly placeholder="下で鉄塔を選択すると自動入力されます">
@@ -219,12 +216,10 @@
     </h2>
     <label>週の開始日（月曜）</label>
     <input type="date" id="weekStart" onchange="onWeekStartChange()">
-    <div class="hint">通常は木曜日に自動で翌週の日付になります。お盆休みなど、翌週も飛ばしてさらに先の週を報告する場合はここを直接変更してください。</div>
 
     <button type="button" class="small-btn" style="margin-top:10px; width:100%;" onclick="toggleAllWeekOff()" id="allOffBtn">この週はすべて休工にする（お盆休みなど）</button>
 
     <label style="margin-top:14px;">今週中に終わる予定の鉄塔（除外リスト）</label>
-    <div class="hint">今週の週間予定に入っていた番号は、来週分の週が始まると自動でここに追加され、来週のプルダウンには出てこなくなります。実際には終わらなかった番号は×で解除でき、逆に追加で除外したい番号もここから追加できます。</div>
     <div class="chiplist" id="exclusionChips" style="margin-top:6px;"></div>
     <div class="row2" style="margin-top:8px;">
       <select id="towerPickExclude"></select>
@@ -238,7 +233,6 @@
   <!-- 鉄塔進捗（一番下に表示） -->
   <div class="card">
     <h2><span class="badge done">進捗</span> 鉄塔進捗（全<span id="towerTotalLabel">57</span>基）</h2>
-    <div class="hint">全体の完了状況です。緑＝完了済み、オレンジ枠＝本日追加した番号。追加・取消は上の「鉄塔を選択」から行ってください。</div>
     <div class="tower-grid" id="towerGrid"></div>
     <div class="progress-summary">
       <span>累積進捗</span>
@@ -539,22 +533,19 @@ async function loadAll(){
       if(draft.nextWorkDate){
         $("nextWorkDate").value = draft.nextWorkDate;
       } else {
-        const nd = new Date($("workDate").value+"T00:00:00"); nd.setDate(nd.getDate()+1);
-        $("nextWorkDate").value = isoDate(nd);
+        $("nextWorkDate").value = nextWorkingDay($("workDate").value);
       }
       $("sendDateInput").value = todayStr();
     } else {
       $("workDate").value = todayStr();
       $("weekStart").value = suggestedWeekStart(todayStr());
-      const nd = new Date(todayStr()+"T00:00:00"); nd.setDate(nd.getDate()+1);
-      $("nextWorkDate").value = isoDate(nd);
+      $("nextWorkDate").value = nextWorkingDay(todayStr());
       $("sendDateInput").value = todayStr();
     }
   }catch(e){
     $("workDate").value = todayStr();
     $("weekStart").value = suggestedWeekStart(todayStr());
-    const nd = new Date(todayStr()+"T00:00:00"); nd.setDate(nd.getDate()+1);
-    $("nextWorkDate").value = isoDate(nd);
+    $("nextWorkDate").value = nextWorkingDay(todayStr());
     $("sendDateInput").value = todayStr();
   }
   $("noWorkToday").checked = noWorkToday;
@@ -575,11 +566,23 @@ function ensureBaseline(){
     saveBaseline();
   }
 }
+// 翌営業日を返す。日曜・土曜・登録済みの会社休日はスキップする。
+// （土曜日なら翌週月曜、翌日が祭日ならさらにその翌日…という動き）
+function nextWorkingDay(fromDateStr){
+  const d = new Date(fromDateStr+"T00:00:00");
+  for(let guard=0; guard<60; guard++){
+    d.setDate(d.getDate()+1);
+    const day = d.getDay();
+    if(day === 0 || day === 6) continue;      // 日曜・土曜
+    if(COMPANY_HOLIDAYS.has(isoDate(d))) continue; // 会社休日
+    return isoDate(d);
+  }
+  return isoDate(d);
+}
 function onDateChange(){
   ensureBaseline();
   $("weekStart").value = autoAdvanceIfStale($("workDate").value, $("weekStart").value);
-  const nd = new Date($("workDate").value+"T00:00:00"); nd.setDate(nd.getDate()+1);
-  $("nextWorkDate").value = isoDate(nd);
+  $("nextWorkDate").value = nextWorkingDay($("workDate").value);
   $("sendDateInput").value = $("workDate").value;
   applyDateGuards();
   applyWeekTransition();
@@ -755,11 +758,13 @@ function renderTowerGrid(){
   const grid = $("towerGrid"); grid.innerHTML = "";
   const list = validTowers();
   list.forEach(i=>{
-    const cell = document.createElement("div");
+    const cell = document.createElement("button");
+    cell.type = "button";
     const isDone = !!towerDone[i];
     const isToday = isDone && !baseline.state[i];
     cell.className = "tower-btn" + (isDone ? " done" : "") + (isToday ? " today" : "");
     cell.textContent = i;
+    cell.onclick = () => toggleTowerDirect(i);
     grid.appendChild(cell);
   });
   const total = list.length;
@@ -767,6 +772,19 @@ function renderTowerGrid(){
   $("progressLabel").textContent = `${done}/${total}基`;
   $("towerTotalLabel").textContent = total;
   renderProgressWidget();
+}
+// 進捗マスを直接タップして完了/未完了を切り替える。
+// 通常は実績から積み上がるが、端末変更などで蓄積が消えた場合に手入力できるようにするためのもの。
+// 直接完了にした分は「本日の実績」に混ざらないよう、baseline 側も同時に更新する。
+function toggleTowerDirect(i){
+  const wasDone = !!towerDone[i];
+  towerDone[i] = !wasDone;
+  baseline.state[i] = towerDone[i];
+  saveTowers();
+  saveBaseline();
+  if(towerDone[i]) nextPlanTowers = nextPlanTowers.filter(n => n !== i);
+  saveDraft(false);
+  renderAll();
 }
 
 function todaysNewTowers(){
@@ -794,11 +812,17 @@ function pickTodayAdd(){
   if(isNaN(v)) return;
   towerDone[v] = true;
   saveTowers();
+  // 実績に入れた番号は、予定側に残っていても自動で取り除く
+  nextPlanTowers = nextPlanTowers.filter(n => n !== v);
+  weeklyTowers = weeklyTowers.map(arr => arr.filter(n => n !== v));
+  saveDraft(false);
   renderTowerGrid();
   renderTodayPicker();
   renderTodayChips();
   renderNextPicker();
+  renderNextChips();
   renderWeekLabels();
+  renderExclusionUI();
   autoFillRangeFromTowers();
   updatePreviewTable();
 }
@@ -1033,7 +1057,22 @@ function updatePreviewTable(){
     const redStyle = isRed ? ' style="color:#c0272d;"' : '';
     weekDateCells += `<td class="center"${redStyle}>${dt.getMonth()+1}/${dt.getDate()}</td>`;
     weekDayCells += `<td class="center"${redStyle}>${labels[i]}</td>`;
-    weekContentCells += `<td class="center" rowspan="2" style="vertical-align:middle;">${d.weekDayOff[i] ? "休工" : formatTowerList(weeklyTowers[i])}</td>`;
+    // 「№1～3, 12」のような塊(グループ)の途中で改行されると見た目が悪いため、
+    // 折り返しはグループの区切りでのみ発生させる。各グループを nowrap の塊として並べ、
+    // 全体の長さに応じて文字サイズだけ段階的に縮小する。
+    let weekInner, weekLen;
+    if(d.weekDayOff[i]){
+      weekInner = "休工";
+      weekLen = 2;
+    } else {
+      const groups = computeGroupLines(weeklyTowers[i]); // ["№1～3", "№12"] の形
+      weekLen = groups.join(" ").length;
+      weekInner = groups
+        .map(g => `<span style="white-space:nowrap;">${g}</span>`)
+        .join('<span style="white-space:normal;">, </span>');
+    }
+    const weekFont = weekLen > 22 ? 6.5 : (weekLen > 14 ? 7.5 : (weekLen > 8 ? 8.5 : 10));
+    weekContentCells += `<td class="center" rowspan="2" style="vertical-align:middle; white-space:normal; line-height:1.3; font-size:${weekFont}px;">${weekInner}</td>`;
   }
 
   // team roster: fixed leader first, then added members — now independent per side
