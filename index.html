@@ -530,11 +530,9 @@ async function loadAll(){
       weekExclusions = draft.weekExclusions || [];
       weeklyTowersWeekStart = draft.weeklyTowersWeekStart || "";
       noWorkToday = draft.noWorkToday || false;
-      if(draft.nextWorkDate){
-        $("nextWorkDate").value = draft.nextWorkDate;
-      } else {
-        $("nextWorkDate").value = nextWorkingDay($("workDate").value);
-      }
+      // 作業日は毎回「当日」にリセットされるため、保存済みの予定日をそのまま使うと
+      // 日付が古いまま（送信日と同じ等の矛盾が発生する）。当日基準で再計算する。
+      $("nextWorkDate").value = nextWorkingDay($("workDate").value);
       $("sendDateInput").value = todayStr();
     } else {
       $("workDate").value = todayStr();
@@ -572,8 +570,9 @@ function nextWorkingDay(fromDateStr){
   const d = new Date(fromDateStr+"T00:00:00");
   for(let guard=0; guard<60; guard++){
     d.setDate(d.getDate()+1);
-    const day = d.getDay();
-    if(day === 0 || day === 6) continue;      // 日曜・土曜
+    // 土曜日は作業することがあるため一律では飛ばさない。
+    // 休みの土曜は「会社休日の設定」に登録してあれば自動でスキップされる。
+    if(d.getDay() === 0) continue;                 // 日曜
     if(COMPANY_HOLIDAYS.has(isoDate(d))) continue; // 会社休日
     return isoDate(d);
   }
@@ -812,9 +811,10 @@ function pickTodayAdd(){
   if(isNaN(v)) return;
   towerDone[v] = true;
   saveTowers();
-  // 実績に入れた番号は、予定側に残っていても自動で取り除く
+  // 実績に入れた番号は「翌日の予定」からは即座に取り除く。
+  // 週間予定は施主へ報告済みの内容なので、ここでは触らず、
+  // 木曜日に週が切り替わるタイミング（applyWeekTransition）でまとめて整理する。
   nextPlanTowers = nextPlanTowers.filter(n => n !== v);
-  weeklyTowers = weeklyTowers.map(arr => arr.filter(n => n !== v));
   saveDraft(false);
   renderTowerGrid();
   renderTodayPicker();
