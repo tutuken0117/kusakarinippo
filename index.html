@@ -18,30 +18,30 @@
   header.top h1{font-size:16px; margin:0; font-weight:700;}
   header.top .sub{font-size:12px; color:#c9c8c2; margin-top:3px;}
   header.top .gear{position:absolute; right:14px; top:20px; background:none; border:none; color:#fff; font-size:20px; padding:4px 8px;}
-  main{padding:14px; max-width:520px; margin:0 auto;}
-  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:14px; transition:box-shadow .2s, border-color .2s;}
+  main{padding:10px; max-width:520px; margin:0 auto;}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:11px 12px; margin-bottom:9px; transition:box-shadow .2s, border-color .2s;}
   .card.field-flash{border-color:var(--safety); box-shadow:0 0 0 3px rgba(224,87,15,.35); animation:flashPulse 0.6s ease-in-out 3;}
   @keyframes flashPulse{
     0%, 100% { background-color:#fff; }
     50% { background-color:#fff2e2; }
   }
-  .card h2{font-size:14px; margin:0 0 12px; display:flex; align-items:center; gap:8px;}
+  .card h2{font-size:13px; margin:0 0 7px; display:flex; align-items:center; gap:7px;}
   .card h2 .badge{background:var(--safety); color:#fff; font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px;}
   .card h2 .badge.steel{background:var(--steel);}
   .card h2 .badge.done{background:var(--done);}
-  label{display:block; font-size:12px; color:var(--ink-soft); margin:10px 0 4px; font-weight:600;}
+  label{display:block; font-size:11px; color:var(--ink-soft); margin:7px 0 3px; font-weight:600;}
   label:first-of-type{margin-top:0;}
   input[type=text], input[type=date], input[type=number], textarea, select{
-    width:100%; padding:11px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:15px; font-family:inherit; background:#fff; color:var(--ink);
+    width:100%; padding:8px 10px; border:1.5px solid var(--line); border-radius:9px; font-size:15px; font-family:inherit; background:#fff; color:var(--ink);
   }
   input[disabled]{background:#f0efe9; color:var(--ink-soft);}
   textarea{resize:vertical; min-height:52px;}
   input:focus, textarea:focus{outline:none; border-color:var(--safety);}
   .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
-  .fixed-pill{display:inline-flex; align-items:center; gap:6px; background:#f0efe9; border:1.5px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px; font-weight:600; color:var(--ink); width:100%;}
+  .fixed-pill{display:inline-flex; align-items:center; gap:6px; background:#f0efe9; border:1.5px solid var(--line); border-radius:9px; padding:7px 10px; font-size:13px; font-weight:600; color:var(--ink); width:100%;}
   .fixed-pill .tag{font-size:10px; background:var(--ink-soft); color:#fff; padding:2px 6px; border-radius:6px; font-weight:700;}
   .chiplist{display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;}
-  .chip{padding:8px 14px; border-radius:20px; border:1.5px solid var(--line); background:#fff; font-size:13px; color:var(--ink-soft); font-weight:600;}
+  .chip{padding:6px 11px; border-radius:20px; border:1.5px solid var(--line); background:#fff; font-size:12px; color:var(--ink-soft); font-weight:600;}
   .chip.on{background:var(--steel); border-color:var(--steel); color:#fff;}
   .tower-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-top:8px;}
   .tower-btn{aspect-ratio:1; border-radius:8px; border:1.5px solid var(--line); background:#fff; font-size:12px; font-weight:700; color:var(--ink-soft); display:flex; align-items:center; justify-content:center;}
@@ -185,27 +185,36 @@
     <label>作業予定日</label>
     <input type="date" id="nextWorkDate" onchange="onNextWorkDateChange()">
 
-    <label>作業場所・範囲</label>
-    <input type="text" id="nextRange" readonly placeholder="下で鉄塔を選択すると自動入力されます">
+    <label style="display:flex; align-items:center; gap:8px; margin-top:12px;">
+      <input type="checkbox" id="noPlanNext" onchange="onNoPlanToggle()" style="width:auto;">
+      次の作業予定なし（工事完了など）
+    </label>
 
-    <label>鉄塔を選択して追加</label>
-    <div class="row2">
-      <select id="towerPickNext"></select>
-      <button class="small-btn" onclick="pickNextAdd()">＋ 翌日予定に追加</button>
+    <div id="nextPlanFields">
+      <label>作業場所・範囲</label>
+      <input type="text" id="nextRange" readonly placeholder="下で鉄塔を選択すると自動入力されます">
+
+      <label>鉄塔を選択して追加</label>
+      <div class="row2">
+        <select id="towerPickNext"></select>
+        <button class="small-btn" onclick="pickNextAdd()">＋ 翌日予定に追加</button>
+      </div>
+      <div class="chiplist" id="nextChips" style="margin-top:8px;"></div>
     </div>
-    <div class="chiplist" id="nextChips" style="margin-top:8px;"></div>
 
-    <label>作業体制（人数）</label>
-    <div class="fixed-pill" id="nextTeamCountDisplay">1名</div>
+    <div id="nextTeamFields">
+      <label>作業体制（人数）</label>
+      <div class="fixed-pill" id="nextTeamCountDisplay">1名</div>
 
-    <label>作業班長</label>
-    <div class="fixed-pill">森田　実 <span class="tag">固定</span></div>
+      <label>作業班長</label>
+      <div class="fixed-pill">森田　実 <span class="tag">固定</span></div>
 
-    <label>作業員（森田　実　以外のメンバー）</label>
-    <div class="chiplist" id="nextMemberChips"></div>
-    <div style="margin-top:8px; display:flex; gap:6px;">
-      <input type="text" id="newNextMemberName" placeholder="名前を追加">
-      <button class="small-btn" onclick="addNextMember()">＋追加</button>
+      <label>作業員（森田　実　以外のメンバー）</label>
+      <div class="chiplist" id="nextMemberChips"></div>
+      <div style="margin-top:8px; display:flex; gap:6px;">
+        <input type="text" id="newNextMemberName" placeholder="名前を追加">
+        <button class="small-btn" onclick="addNextMember()">＋追加</button>
+      </div>
     </div>
   </div>
 
@@ -331,6 +340,7 @@ let towerDone = {};          // { "1": true, "2": false ... } cumulative
 let baseline = {date:"", state:{}}; // snapshot at start of current work date
 let nextPlanTowers = [];     // towers planned for tomorrow (not yet done)
 let noWorkToday = false;     // true on days with no actual work, plan-only report
+let noPlanNext = false;      // true when there is no next work planned (e.g. work completed)
 
 // PDF作成に使うライブラリ(html2canvas / jsPDF)をJSから直接読み込みます。
 // <script src="..."> をHTML側に置く方式だと、CodePen等に貼り付けた際に
@@ -530,6 +540,7 @@ async function loadAll(){
       weekExclusions = draft.weekExclusions || [];
       weeklyTowersWeekStart = draft.weeklyTowersWeekStart || "";
       noWorkToday = draft.noWorkToday || false;
+      noPlanNext = draft.noPlanNext || false;
       // 作業日は毎回「当日」にリセットされるため、保存済みの予定日をそのまま使うと
       // 日付が古いまま（送信日と同じ等の矛盾が発生する）。当日基準で再計算する。
       $("nextWorkDate").value = nextWorkingDay($("workDate").value);
@@ -550,6 +561,9 @@ async function loadAll(){
   $("todayWorkFields").style.display = noWorkToday ? "none" : "";
   $("todayTeamFields").style.display = noWorkToday ? "none" : "";
   $("todayNoWorkNote").style.display = noWorkToday ? "" : "none";
+  $("noPlanNext").checked = noPlanNext;
+  $("nextPlanFields").style.display = noPlanNext ? "none" : "";
+  $("nextTeamFields").style.display = noPlanNext ? "none" : "";
   applyDateGuards();
 
   applyWeekTransition();
@@ -618,6 +632,17 @@ function onNoWorkToggle(){
   renderAll();
 }
 
+function onNoPlanToggle(){
+  noPlanNext = $("noPlanNext").checked;
+  $("nextPlanFields").style.display = noPlanNext ? "none" : "";
+  $("nextTeamFields").style.display = noPlanNext ? "none" : "";
+  if(noPlanNext){
+    nextPlanTowers = [];
+  }
+  saveDraft(false);
+  renderAll();
+}
+
 function renderAll(){
   $("subtitleLine").textContent = settings.projectName;
   renderMemberChips();
@@ -656,13 +681,18 @@ function dateConsistencyIssues(){
   const sendDate = $("sendDateInput").value || todayStr();
   const wd = $("workDate").value;
   const nwd = $("nextWorkDate").value;
-  if(sendDate === nwd) issues.push({text:"送信日と作業予定日が同じ日付になっています。", target:"nextWorkDate"});
-  if(nwd < sendDate) issues.push({text:"作業予定日が送信日より過去の日付になっています。", target:"nextWorkDate"});
+  // 予定なしの日は「作業予定日」が印字されないため、予定日に関するチェックは行わない
+  if(!noPlanNext){
+    if(sendDate === nwd) issues.push({text:"送信日と作業予定日が同じ日付になっています。", target:"nextWorkDate"});
+    if(nwd < sendDate) issues.push({text:"作業予定日が送信日より過去の日付になっています。", target:"nextWorkDate"});
+  }
   if(!noWorkToday){
     // 実績なしの日は「作業実績日」が印字されないため、これらのチェックは意味を持たない
     if(wd < sendDate) issues.push({text:"作業実績日が送信日より過去の日付になっています。", target:"workDate"});
-    if(wd === nwd) issues.push({text:"作業実績日と作業予定日が同じ日付になっています。", target:"nextWorkDate"});
-    if(nwd < wd) issues.push({text:"作業予定日が作業実績日より過去の日付になっています。", target:"nextWorkDate"});
+    if(!noPlanNext){
+      if(wd === nwd) issues.push({text:"作業実績日と作業予定日が同じ日付になっています。", target:"nextWorkDate"});
+      if(nwd < wd) issues.push({text:"作業予定日が作業実績日より過去の日付になっています。", target:"nextWorkDate"});
+    }
   }
   return issues;
 }
@@ -684,7 +714,7 @@ function renderDateWarningBanner(){
 function validateIssues(){
   const issues = [];
   if(!noWorkToday && todaysNewTowers().length === 0) issues.push({text:"本日完了した鉄塔が選択されていません（本日の作業実績）。「実績なし」の日であれば、上のチェックボックスにチェックしてください。", target:"towerPickToday"});
-  if(nextPlanTowers.length === 0) issues.push({text:"翌日の作業予定（鉄塔）が選択されていません。", target:"towerPickNext"});
+  if(!noPlanNext && nextPlanTowers.length === 0) issues.push({text:"翌日の作業予定（鉄塔）が選択されていません。「予定なし」であれば、上のチェックボックスにチェックしてください。", target:"towerPickNext"});
   const isThu = new Date().getDay() === 4;
   const weeklyEmpty = weeklyTowers.every(arr => arr.length===0) && weekDayOff.every(v => !v);
   if(isThu && weeklyEmpty) issues.push({text:"本日は木曜日です。来週の作業予定（週間予定欄）が未入力です。", target:"weekGrid"});
@@ -1025,7 +1055,7 @@ function collectDraft(){
     weekStart: $("weekStart").value,
     weekDayOff, weeklyTowers,
     weekExclusions, weeklyTowersWeekStart,
-    noWorkToday
+    noWorkToday, noPlanNext
   };
 }
 async function saveDraft(showMsg){
@@ -1077,33 +1107,38 @@ function updatePreviewTable(){
 
   // team roster: fixed leader first, then added members — now independent per side
   const roster = [settings.fixedLeader, ...d.members.filter(n => n !== settings.fixedLeader)];
-  const nextRoster = [settings.fixedLeader, ...d.nextMembers.filter(n => n !== settings.fixedLeader)];
+  const fullNextRoster = [settings.fixedLeader, ...d.nextMembers.filter(n => n !== settings.fixedLeader)];
   const leftRoster = d.noWorkToday ? [] : roster;
+  const nextRoster = d.noPlanNext ? [] : fullNextRoster;
   const leftTeamCount = d.noWorkToday ? "" : `${roster.length}名`;
-  const rightTeamCount = `${nextRoster.length}名`;
+  const rightTeamCount = d.noPlanNext ? "" : `${fullNextRoster.length}名`;
   const todayGroups = computeGroupLines(todaysNewTowers());
   const nextGroups = computeGroupLines(nextPlanTowers);
   const CONTENT_ROWS = 13; // Excel rows 10–22
 
   // Left block (A,B,C merged, rows10–22): subtitle + line name + range groups, stacked
-  let leftLines = ["・鉄塔敷地・巡視路"];
+  let leftLines;
   if(d.noWorkToday){
-    leftLines.push("本日は作業なし（予定のみ報告）");
+    // 実績なしの日は、固定文言も含めて空欄にする
+    leftLines = [];
   } else if(todayGroups.length){
-    leftLines.push(`${settings.lineName}　${todayGroups[0]}`);
+    leftLines = ["・鉄塔敷地・巡視路", `${settings.lineName}　${todayGroups[0]}`];
     for(let g=1; g<todayGroups.length; g++) leftLines.push(todayGroups[g]);
   } else {
-    leftLines.push(settings.lineName);
+    leftLines = ["・鉄塔敷地・巡視路", settings.lineName];
   }
   const leftContent = leftLines.join("<br>");
 
   // Right block (F,G,H merged, rows10–22): next-day line name + range groups
-  let rightLines = ["・鉄塔敷地・巡視路"];
-  if(nextGroups.length){
-    rightLines.push(`${settings.lineName}　${nextGroups[0]}`);
+  let rightLines;
+  if(d.noPlanNext){
+    // 予定なし（工事完了など）のときは、固定文言も含めて空欄にする
+    rightLines = [];
+  } else if(nextGroups.length){
+    rightLines = ["・鉄塔敷地・巡視路", `${settings.lineName}　${nextGroups[0]}`];
     for(let g=1; g<nextGroups.length; g++) rightLines.push(nextGroups[g]);
   } else {
-    rightLines.push(settings.lineName);
+    rightLines = ["・鉄塔敷地・巡視路", settings.lineName];
   }
   const rightContent = rightLines.join("<br>");
 
@@ -1112,7 +1147,7 @@ function updatePreviewTable(){
     <td rowspan="${CONTENT_ROWS}" colspan="3" class="wrap" style="vertical-align:top; text-align:left;">${leftContent}</td>
     <td class="label">${leftRoster.length ? "作業班長" : ""}</td><td class="nowrap">${leftRoster[0]||""}</td>
     <td rowspan="${CONTENT_ROWS}" colspan="3" class="wrap" style="vertical-align:top; text-align:left;">${rightContent}</td>
-    <td class="label">作業班長</td><td class="nowrap">${nextRoster[0]||""}</td>
+    <td class="label">${nextRoster.length ? "作業班長" : ""}</td><td class="nowrap">${nextRoster[0]||""}</td>
   </tr>`;
   for(let r=1; r<CONTENT_ROWS; r++){
     contentRows += `<tr class="rh">
@@ -1148,7 +1183,7 @@ function updatePreviewTable(){
       <td colspan="5" class="subhead">〈　作　業　実　績　〉</td>
       <td colspan="5" class="subhead">〈　作　業　予　定　〉</td>
     </tr>
-    <tr><td colspan="5" class="center">${d.noWorkToday ? "" : fmtJP(d.workDate)}</td><td colspan="5" class="center">${fmtJP(nextDateStr)}</td></tr>
+    <tr><td colspan="5" class="center">${d.noWorkToday ? "" : fmtJP(d.workDate)}</td><td colspan="5" class="center">${d.noPlanNext ? "" : fmtJP(nextDateStr)}</td></tr>
     <tr class="rh">
       <td colspan="3" class="label">作業場所・範囲</td><td class="label">作業体制：</td><td class="center">${leftTeamCount}</td>
       <td colspan="3" class="label">作業場所・範囲</td><td class="label">作業体制：</td><td class="center">${rightTeamCount}</td>
